@@ -24,11 +24,16 @@ All the instructions except halt will take three bytes—and halt, just one—to
 function virtualComputer(program) { // program is an array of 20 bytes of main memory
 	if (!program || program.length !== 20 || !Array.isArray(program)) { return; }
 
-	// internal state
-	var programCounter = 0;
-	var registers = [programCounter, null, null];
+	// instruction set
+	const LOAD = 0x01;
+	const STORE = 0x02;
+	const ADD = 0x03;
+	const SUBTRACT = 0x04;
+	const HALT = 0xff;
 
-	var done = false;
+	// internal state. Registers mapped to 0 (program counter), 1, and 2.
+	var registers = [0, null, null];
+
 	function decodeInstruction(instruction) {
 		// load input into register
 		var loadWord = function(registerAddress, inputAddress) {
@@ -51,70 +56,61 @@ function virtualComputer(program) { // program is an array of 20 bytes of main m
 			program[outputAddress + 1] = bigValue;
 		};
 
-		var add =  function (regAdd1, regAdd2) { registers[regAdd1] += registers[regAdd2]; };
-		var subtract =  function (regAdd1, regAdd2) { registers[regAdd1] = registers[regAdd1] - registers[regAdd2]; };
-		var halt = function () { done = true; }
-
-		var decodeMap = {
-			0x01: loadWord,
-			0x02: storeWord,
-			0x03: add,
-			0x04: subtract,
-			0xff: halt
-		};
-
-		return decodeMap[instruction];
+		if (instruction === LOAD) { return loadWord; }
+		if (instruction === STORE) { return storeWord; }
+		if (instruction === ADD) { return function (regAdd1, regAdd2) { registers[regAdd1] += registers[regAdd2]; }; }
+		if (instruction === SUBTRACT) { return function (regAdd1, regAdd2) { registers[regAdd1] = registers[regAdd1] - registers[regAdd2]; }; }
 	}
 
-
-	for (var i = 0; i < program.length; i++) {
-		// if we are starting an instruction
-		if (i === programCounter) {
-			// 1. fetch instruction and parameters
-			var instruction = program[i];
-			var param1 = program[i + 1];
-			var param2 = program[i + 2];
-			// 2. decode instruction, i.e. get function
-			action = decodeInstruction(instruction);
-			// 3. execute instruction, which may modify program memory
-			action(param1, param2);
-
-			if (done === true) {
-				programCounter = program.length;
-				break;
-			} else {
-				// all instructions except halt will take up 3 bytes/addresses.
-				programCounter += 3;
-			}
-		}
+	while (program[registers[0]] !== HALT) {
+		// 1. fetch instruction and parameters
+		var programCounter = registers[0];
+		var instruction = program[programCounter];
+		var arg1 = program[programCounter + 1];
+		var arg2 = program[programCounter + 2];
+		// 2. decode instruction, i.e. get function
+		var operation = decodeInstruction(instruction);
+		// 3. execute instruction, which may modify program memory
+		operation(arg1, arg2);
+		// all instructions except halt will take up 3 bytes/addresses
+		registers[0] += 3;
 	}
-
 }
 
-// TESTS
+// Test Helpers
+
+// Fetch and translate result based on Little Endian system
+function getResult(memory) {
+	return memory[14] + (memory[15] * 256);
+}
+
+function testResult(memory, expectedResult) {
+	console.log('Memory:', memory);
+	var result = getResult(memory);
+	console.log('New memory:', memory);
+	console.log('Result:', result);
+	console.log('Expected:', expectedResult);
+	console.log(result === expectedResult ? "Passed" : "Failed");
+}
+
+// Tests
 
 function test1() {
 	// external state/program in mainMemory
 	var mainMemory = [
-	  0x01, 0x01, 0x10,
-	  0x01, 0x02, 0x12,
-	  0x03, 0x01, 0x02,
-	  0x02, 0x01, 0x0e,
-	  0xff,
-	  0x00,
-	  0x00, 0x00,
-	  0xa1, 0x14,
-	  0x0c, 0x00
+	  0x01, 0x01, 0x10, // LOAD reg1 input1
+	  0x01, 0x02, 0x12, // LOAD reg2 input2
+	  0x03, 0x01, 0x02, // ADD reg1 adn reg2 and store in reg1
+	  0x02, 0x01, 0x0e, // STORE reg1 in output 0e
+	  0xff,	// HALT
+	  0x00, // blank
+	  0x00, 0x00, // output
+	  0xa1, 0x14, // input1 (161, 20 = 161 + (20*256)=5281)
+	  0x0c, 0x00 // input2 (12)
 	];
-	console.log(mainMemory);
-
-	var expected = 5293;
 	virtualComputer(mainMemory);
-	var result = mainMemory[14] + (mainMemory[15] * 256);
-	console.log('Result:', result);
-	console.log('Expected:', expected);
-	console.log(result === expected); // pass!
-	console.log(mainMemory);
+	var expectedResult = 5293;
+	testResult(mainMemory, expectedResult);
 }
 test1();
 
