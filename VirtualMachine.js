@@ -32,44 +32,45 @@ function virtualComputer(program) { // program is an array of 20 bytes of main m
 	const HALT = 0xff;
 
 	// internal state. Registers mapped to 0 (program counter), 1, and 2.
-	var registers = [0, null, null];
+	const registers = [0, null, null];
 
 	function decodeInstruction(instruction) {
 		// load input into register
-		var loadWord = function(registerAddress, inputAddress) {
+		const loadWord = (registerAddress, inputAddress) => {
 			// fetch values
-			var input = program[inputAddress] + (program[inputAddress + 1] * 256);
-		    // bitwise operation: var input = program[inputAddress] + (program[inputAddress + 1] << 8);
+			const input = program[inputAddress] + (program[inputAddress + 1] * 256);
+		    // since Math.log2(256) === 8, could also do bitwise operation:
+		    // const input = program[inputAddress] + (program[inputAddress + 1] << 8);
 
 			// assume that the registers can hold 16 bit (2 byte) numbers directly
 			registers[registerAddress] = input;
 		};
 
 		// Store register's value into output. Assumes outputAddress is the lower index/address of the two bytes of memory for output
-		var storeWord = function(registerAddress, outputAddress) {
-			var value = registers[registerAddress];
+		const storeWord = (registerAddress, outputAddress) => {
+			const value = registers[registerAddress];
 			// This is a “little endian” system, meaning the “least significant byte”
 			// of our inputs and outputs occupy the smaller array index location.
-			var smallValue = value % 256; // bitwise operation: value & 0x00ff
-			var bigValue = Math.floor(value / 256); // bitwise operation: value >> 8
+			const smallValue = value % 256; // bitwise operation: `value & 255` or `value & 0x00ff`
+			const bigValue = Math.floor(value / 256); // bitwise operation: value >> 8
 			program[outputAddress] = smallValue;
 			program[outputAddress + 1] = bigValue;
 		};
 
 		if (instruction === LOAD) { return loadWord; }
 		if (instruction === STORE) { return storeWord; }
-		if (instruction === ADD) { return function (regAdd1, regAdd2) { registers[regAdd1] += registers[regAdd2]; }; }
-		if (instruction === SUBTRACT) { return function (regAdd1, regAdd2) { registers[regAdd1] = registers[regAdd1] - registers[regAdd2]; }; }
+		if (instruction === ADD) { return (regAdd1, regAdd2) => { registers[regAdd1] += registers[regAdd2]; }; }
+		if (instruction === SUBTRACT) { return (regAdd1, regAdd2) => { registers[regAdd1] = registers[regAdd1] - registers[regAdd2]; }; }
 	}
 
 	while (program[registers[0]] !== HALT) {
 		// 1. fetch instruction and parameters
-		var programCounter = registers[0];
-		var instruction = program[programCounter];
-		var arg1 = program[programCounter + 1];
-		var arg2 = program[programCounter + 2];
+		const programCounter = registers[0];
+		const instruction = program[programCounter];
+		const arg1 = program[programCounter + 1];
+		const arg2 = program[programCounter + 2];
 		// 2. decode instruction, i.e. get function
-		var operation = decodeInstruction(instruction);
+		const operation = decodeInstruction(instruction);
 		// 3. execute instruction, which may modify program memory
 		operation(arg1, arg2);
 		// all instructions except halt will take up 3 bytes/addresses
@@ -86,7 +87,7 @@ function getResult(memory) {
 
 function testResult(memory, expectedResult) {
 	console.log('Memory:', memory);
-	var result = getResult(memory);
+	const result = getResult(memory);
 	console.log('New memory:', memory);
 	console.log('Result:', result);
 	console.log('Expected:', expectedResult);
@@ -97,7 +98,7 @@ function testResult(memory, expectedResult) {
 
 function test1() {
 	// external state/program in mainMemory
-	var mainMemory = [
+	const mainMemory = [
 	  0x01, 0x01, 0x10, // LOAD reg1 input1
 	  0x01, 0x02, 0x12, // LOAD reg2 input2
 	  0x03, 0x01, 0x02, // ADD reg1 adn reg2 and store in reg1
@@ -109,7 +110,7 @@ function test1() {
 	  0x0c, 0x00 // input2 (12)
 	];
 	virtualComputer(mainMemory);
-	var expectedResult = 5293;
+	const expectedResult = 5293;
 	testResult(mainMemory, expectedResult);
 }
 test1();
